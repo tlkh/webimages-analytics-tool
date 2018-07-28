@@ -15,3 +15,8 @@ google-cloud-logging
 imageio
 maxminddb-geolite2
 newspaper3k
+dash
+dash-renderer
+dash-html-components
+dash-core-components
+plotly
