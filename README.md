@@ -20,6 +20,14 @@ The user confirms the crop. The image is sent to an online server, where croppin
 ## Technical Details
 The repository will be run by the server. The input is an image and cropping instructions, and the output is relevant information regarding the image. 
 
+### Quick Install Guide
+
+1. `git clone https://github.com/tlkh/webimages-analytics-tool`
+2. `sudo pip3 install -r requirements.txt`
+3. Follow the [instructions to set up Cloud Vision authentication](https://cloud.google.com/vision/docs/libraries#client-libraries-install-python) in your environment
+4. `python3 server.py -p 9000` to run the server at `localhost:9000`
+5. Test your server with Postman
+
 ### The INPUT
 Our server will receive a JSON file. 
 
