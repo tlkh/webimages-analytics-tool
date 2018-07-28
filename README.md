@@ -25,8 +25,7 @@ The repository will be run by the server. The input is an image and cropping ins
 Prerequisites:
 
 * Ubuntu environment is preferred
-* python3-dev python3-pip python3-tk
-* 
+* `sudo apt install python3-dev python3-pip python3-tk libsm6 libxext6 libfreeimage-dev`
 
 1. `git clone https://github.com/tlkh/webimages-analytics-tool`
 2. `sudo pip3 install -r requirements.txt`
