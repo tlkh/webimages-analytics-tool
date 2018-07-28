@@ -22,6 +22,12 @@ The repository will be run by the server. The input is an image and cropping ins
 
 ### Quick Install Guide
 
+Prerequisites:
+
+* Ubuntu environment is preferred
+* python3-dev python3-pip python3-tk
+* 
+
 1. `git clone https://github.com/tlkh/webimages-analytics-tool`
 2. `sudo pip3 install -r requirements.txt`
 3. Follow the [instructions to set up Cloud Vision authentication](https://cloud.google.com/vision/docs/libraries#client-libraries-install-python) in your environment

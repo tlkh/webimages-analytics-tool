@@ -1,5 +1,5 @@
 numpy
-script
+scipy
 matplotlib
 jupyter
 ipywidgets
