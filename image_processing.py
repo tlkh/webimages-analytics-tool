@@ -6,7 +6,6 @@ import os
 import base64
 import json
 from imageio import imread
-
 import time
 import urllib
 from urllib.parse import urlparse
@@ -15,19 +14,20 @@ import json
 import socket
 from geolite2 import geolite2
 from newspaper import Article
-
 from threading import Thread
+from cloud_api_functions import *
 
-from google.cloud import vision
-from google.cloud.vision import types
+# global variables
+output = {}
+threads_list = []
 
 
-def parse_crop_instructions(data):
-    '''
-    input: dict
-    output: cropped image
-    '''
-    image_data = bytes(data['imageData'], 'utf-8')
+def base64_decode_image(data):
+    try:
+        image_data = bytes(data, 'utf-8')
+    except Exception as e:
+        print(e)
+        image_data = data
     try:
         image_raw = base64.decodestring(image_data)
     except Exception as e:
@@ -35,6 +35,16 @@ def parse_crop_instructions(data):
         if missing_padding != 0:
             image_data += b'=' * (4 - missing_padding)
         image_raw = base64.decodestring(image_data)
+    return image_raw
+
+
+def parse_crop_instructions(data):
+    '''
+    input: dict
+    output: cropped image
+    '''
+    
+    image_raw = base64_decode_image(data["imageData"])
 
     image = imread(image_raw)
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
@@ -46,9 +56,7 @@ def parse_crop_instructions(data):
     crop_h = int(data["height"])
 
     rotate = int(data["rotate"])
-    rows, cols, ch = image.shape
-    M = cv2.getRotationMatrix2D((cols/2, rows/2), rotate, 1)
-    image = cv2.warpAffine(image, M, (cols, rows))
+    image = rotate_image(image, rotate)
 
     if crop_w == 0 or crop_h == 0:
         return image
@@ -57,56 +65,6 @@ def parse_crop_instructions(data):
         ocv_box = [crop_x, crop_y, crop_w, crop_h]
         cropped_image = crop_image(image, ocv_box)
         return cropped_image
-
-
-output = {}
-threads_list = []
-
-
-def return_rms_payload(image, lang, num_results, debug=False):
-    global output
-    print("=====")
-    file_name = "/tmp/"+str(time.time())+".jpg"
-    print("Logged image:", file_name)
-    cv2.imwrite(file_name, image)
-
-    num_results = int(num_results)
-
-    text_ann = detect_text(file_name, lang)
-    annotations = detect_web(file_name, num_results, True)
-
-    output = {}
-    output["results"] = False
-    output["full_matches"] = []
-    output["partial_matches"] = []
-    output["similar_images"] = []
-    output["best_guess"] = []
-    output["image_text"] = text_ann
-
-    if annotations.best_guess_labels:
-        for label in annotations.best_guess_labels:
-            output["best_guess"].append(label.label)
-
-    global threads_list
-
-    threads_list = []
-    for page in annotations.pages_with_matching_images:
-        print("Analysing", page.url)
-        analyse_page().start(page, annotations)
-
-    print("\nNumber of threads:")
-    print(len(threads_list))
-    print("Waiting...")
-    [t.join() for t in threads_list]
-    print("All threads completed!")
-
-    if (len(output["full_matches"])+len(output["partial_matches"])+len(output["similar_images"])) < 1:
-        output["results"] = False
-        output["errors"] = "No images can be found by GCP Vision API"
-    else:
-        output["results"] = True
-
-    return json.dumps(output)
 
 
 class analyse_page():
@@ -214,6 +172,18 @@ def ingest_image_disk(file_dir):
     return image
 
 
+def base64_encode_image(image):
+    encoded_string = base64.b64encode(image_file.read())
+    return encoded_string
+
+
+def geolocate_url(url_):
+    ip_a = socket.gethostbyname(urlparse(url_).netloc)
+    reader = geolite2.reader()
+    country = reader.get(ip_a)['country']['names']['en']
+    return ip_a, country
+
+
 def crop_image(image, ocv_box):
     [x, y, w, h] = ocv_box
     cropped = image[y:y+h, x:x+w]
@@ -295,83 +265,54 @@ def suggest_smart_crop(img, num_boxes, debug=False):
     return output_boxes
 
 
-def detect_web(path, max_results, return_json=True):
-    """Detects web annotations given an image."""
-    client = vision.ImageAnnotatorClient()
+def rotate_image(image, rotate):
+    rows, cols, ch = image.shape
+    M = cv2.getRotationMatrix2D((cols/2, rows/2), rotate, 1)
+    image = cv2.warpAffine(image, M, (cols, rows))
+    return image
 
-    with io.open(path, 'rb') as image_file:
-        content = image_file.read()
 
-    image = vision.types.Image(content=content)
+def return_rms_payload(image, lang, num_results, debug=False):
+    global output
+    print("=====")
+    file_name = "/tmp/"+str(time.time())+".jpg"
+    print("Logged image:", file_name)
+    cv2.imwrite(file_name, image)
 
-    response = client.web_detection(image=image, max_results=max_results)
-    annotations = response.web_detection
+    num_results = int(num_results)
 
-    if return_json:
-        return annotations
+    text_ann = detect_text(file_name, lang)
+    annotations = detect_web(file_name, num_results, True)
 
+    output = {}
+    output["results"] = False
+    output["full_matches"] = []
+    output["partial_matches"] = []
+    output["similar_images"] = []
+    output["best_guess"] = []
+    output["image_text"] = text_ann
+
+    if annotations.best_guess_labels:
+        for label in annotations.best_guess_labels:
+            output["best_guess"].append(label.label)
+
+    global threads_list
+
+    threads_list = []
+    for page in annotations.pages_with_matching_images:
+        print("Analysing", page.url)
+        analyse_page().start(page, annotations)
+
+    print("\nNumber of threads:")
+    print(len(threads_list))
+    print("Waiting...")
+    [t.join() for t in threads_list]
+    print("All threads completed!")
+
+    if (len(output["full_matches"])+len(output["partial_matches"])+len(output["similar_images"])) < 1:
+        output["results"] = False
+        output["errors"] = "No images can be found by GCP Vision API"
     else:
-        if annotations.best_guess_labels:
-            for label in annotations.best_guess_labels:
-                print('\nBest guess label: {}'.format(label.label))
+        output["results"] = True
 
-        if annotations.pages_with_matching_images:
-            print('\n{} Pages with matching images found:'.format(
-                len(annotations.pages_with_matching_images)))
-
-            for page in annotations.pages_with_matching_images:
-                print('\n\tPage url   : {}'.format(page.url))
-
-                if page.full_matching_images:
-                    print('\t{} Full Matches found: '.format(
-                        len(page.full_matching_images)))
-
-                    for image in page.full_matching_images:
-                        print('\t\tImage url  : {}'.format(image.url))
-
-                if page.partial_matching_images:
-                    print('\t{} Partial Matches found: '.format(
-                        len(page.partial_matching_images)))
-
-                    for image in page.partial_matching_images:
-                        print('\t\tImage url  : {}'.format(image.url))
-
-        if annotations.web_entities:
-            print('\n{} Web entities found: '.format(
-                len(annotations.web_entities)))
-
-            for entity in annotations.web_entities:
-                print('\n\tScore      : {}'.format(entity.score))
-                print(u'\tDescription: {}'.format(entity.description))
-
-        if annotations.visually_similar_images:
-            print('\n{} visually similar images found:\n'.format(
-                len(annotations.visually_similar_images)))
-
-            for image in annotations.visually_similar_images:
-                print('\tImage url    : {}'.format(image.url))
-
-    return True
-
-
-def detect_text(path, lang):
-    """Detects text in the file."""
-    client = vision.ImageAnnotatorClient()
-
-    with io.open(path, 'rb') as image_file:
-        content = image_file.read()
-
-    image = vision.types.Image(content=content)
-    image_context = types.ImageContext(language_hints=[lang])
-
-    response = client.text_detection(image=image, image_context=image_context)
-
-    texts = response.text_annotations
-
-    output = []
-
-    for text in texts:
-        if len(text.description.split(" ")) > 1:
-            output.append(text.description)
-
-    return output
+    return json.dumps(output)
