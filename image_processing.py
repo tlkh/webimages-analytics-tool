@@ -65,7 +65,9 @@ threads_list = []
 
 def return_rms_payload(image, lang, num_results, debug=False):
     global output
+    print("=====")
     file_name = "/tmp/"+str(time.time())+".jpg"
+    print("Logged image:", file_name)
     cv2.imwrite(file_name, image)
 
     num_results = int(num_results)
@@ -92,7 +94,7 @@ def return_rms_payload(image, lang, num_results, debug=False):
         print("Analysing", page.url)
         analyse_page().start(page, annotations)
 
-    print("\n=====\nNumber of threads:")
+    print("\nNumber of threads:")
     print(len(threads_list))
     print("Waiting...")
     [t.join() for t in threads_list]
