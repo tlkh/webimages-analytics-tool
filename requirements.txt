@@ -1,0 +1,16 @@
+numpy
+script
+matplotlib
+jupyter
+ipywidgets
+pillow
+sklearn
+pandas
+appjar
+opencv-contrib-python
+tensorflow
+keras
+google-cloud-vision
+imageio
+maxminddb-geolite2
+newspaper3k
