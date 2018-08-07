@@ -6,9 +6,7 @@ ipywidgets
 pillow
 sklearn
 pandas
-appjar
 opencv-contrib-python
-tensorflow
 keras
 google-cloud-vision
 google-cloud-logging
